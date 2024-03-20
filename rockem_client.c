@@ -40,18 +40,22 @@ main(int argc, char *argv[])
         switch (opt) {
         case 'i':
             // copy optarg into the ip_addr
+			strcpy(ip_addr, optarg);
             break;
         case 'p':
             // CONVERT and assign optarg to ip_port
+			sscanf(optarg, "%hd", &ip_port);
             break;
         case 'c':
             // copy optarg into data member cmd.cmd
+			strcpy(cmd.cmd, optarg);
             break;
         case 'v':
             is_verbose++;
             break;
         case 'u':
             // add 1000 to sleep_flag
+			sleep_flag += 1000;
             break;
         case 'h':
             fprintf(stderr, "%s ...\n\tOptions: %s\n"

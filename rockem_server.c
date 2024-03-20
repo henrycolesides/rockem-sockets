@@ -51,9 +51,10 @@ main(int argc, char *argv[])
         switch (opt) {
         case 'p':
             // CONVERT and assign optarg to ip_port
+			sscanf(optarg, "%hd", &ip_port);
             break;
         case 'u':
-            // add 1000 to sleep_flag
+			sleep_flag += 1000;
             break;
         case 'v':
             is_verbose++;
@@ -75,23 +76,33 @@ main(int argc, char *argv[])
             break;
         }
     }
+	
+    // Create a socket from the AF_INET family
+	//	that is a stream socket
+	listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    // Create a socket from the AF_INET family, that is a stream socket
-
-    // Performing a memset() on servaddr is quite important when doing 
-    //   socket communication.
+    // Performing a memset() on servaddr is quite important when 
+    // doing socket communication.
+	memset(&servaddr, 0, sizeof(servaddr));
 
     // An IPv4 address
+	servaddr.sin_family = AF_INET;
 
     // Host-TO-Network-Long. Listen on any interface/IP of the system.
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);	
 
     // Host-TO-Network-Short, the default port from above.
-
+	servaddr.sin_port = htons(ip_port);
     
     // bind the listenfd
+	if (bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) != 0)
+	{
+		perror("Binding went wrong");
+		exit(EXIT_FAILURE);
+	}
 
     // listen on the listenfd
-
+	listen(listenfd, LISTENQ);	
 
     {
         char hostname[256];
@@ -99,16 +110,18 @@ main(int argc, char *argv[])
         char *IPbuffer;
 
         memset(hostname, 0, sizeof(hostname));
-        // gethostname()
-        // gethostbyname()
-        // inet_ntoa()
+        gethostname(hostname, 256);
+        host_entry = gethostbyname(hostname);
+        IPbuffer = inet_ntoa(*(struct in_addr *)host_entry->h_addr_list[0]);
         
         fprintf(stdout, "Hostname: %s\n", hostname);
         fprintf(stdout, "IP:       %s\n", IPbuffer);
         fprintf(stdout, "Port:     %d\n", ip_port);
     }
 
+
     // create the input handler thread
+	pthread_create(&cmd_thread, NULL, server_commands, NULL);
 
     // client length
     clilen = sizeof(cliaddr);
@@ -122,21 +135,21 @@ main(int argc, char *argv[])
 
         // read a cmd_t structure from the socket.
         // if zro bytes are read, close the scoket
-        if ((n = read(...)) == 0) {
-            fprintf(stdout, "EOF found on client connection socket, "
-                    "closing connection.\n");
-            // nothing was read, EOF
-            // close the scoket
-        }
-        else {
-            if (is_verbose) {
-                fprintf(stdout, "Connection from client: <%s>\n", buf);
-            }
-            // process the command from the client
-            // in the process_connection() is where I divy out the put/get/dir
-            // threads
-            process_connection(sockfd, buf, n);
-        }
+        //if ((n = read(...)) == 0) {
+        //    fprintf(stdout, "EOF found on client connection socket, "
+        //            "closing connection.\n");
+        //    // nothing was read, EOF
+        //    // close the scoket
+        //}
+        //else {
+        //    if (is_verbose) {
+        //        fprintf(stdout, "Connection from client: <%s>\n", buf);
+        //    }
+        //    // process the command from the client
+        //    // in the process_connection() is where I divy out the put/get/dir
+        //    // threads
+        //    process_connection(sockfd, buf, n);
+        //}
     }
 
     printf("Closing listen socket\n");
@@ -195,10 +208,12 @@ process_connection(int sockfd, void *buf, int n)
 void *
 server_commands(void *p)
 {
-    char cmd[80];
+    char cmd[80] = {'\0'};
     char *ret_val;
+	char *saveptr;
 
     // detach the thread
+	pthread_detach(pthread_self());
 
     server_help();
     for ( ; ; ) {
@@ -209,6 +224,7 @@ server_commands(void *p)
             break;
         }
         // STOMP on the pesky new line
+		strtok_r(cmd, "\n", &saveptr);		
 
         if (strlen(cmd) == 0) {
             continue;
