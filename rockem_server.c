@@ -128,28 +128,30 @@ main(int argc, char *argv[])
     // Accept connections on the listenfd.
     for ( ; ; ) {
         // loop forever accepting connections
-
+		
+		sockfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
         // You REALLY want to memset to all zeroes before you get bytes from
         // the socket.
         memset(buf, 0, sizeof(buf));
 
         // read a cmd_t structure from the socket.
         // if zro bytes are read, close the scoket
-        //if ((n = read(...)) == 0) {
-        //    fprintf(stdout, "EOF found on client connection socket, "
-        //            "closing connection.\n");
-        //    // nothing was read, EOF
-        //    // close the scoket
-        //}
-        //else {
-        //    if (is_verbose) {
-        //        fprintf(stdout, "Connection from client: <%s>\n", buf);
-        //    }
-        //    // process the command from the client
-        //    // in the process_connection() is where I divy out the put/get/dir
-        //    // threads
-        //    process_connection(sockfd, buf, n);
-        //}
+        if ((n = read(sockfd, buf, MAXLINE)) == 0) {
+            fprintf(stdout, "EOF found on client connection socket, "
+                    "closing connection.\n");
+			close(sockfd);
+            // nothing was read, EOF
+            // close the scoket
+        }
+        else {
+            if (is_verbose) {
+                fprintf(stdout, "Connection from client: <%s>\n", buf);
+            }
+            // process the command from the client
+            // in the process_connection() is where I divy out the put/get/dir
+            // threads
+            process_connection(sockfd, buf, n);
+        }
     }
 
     printf("Closing listen socket\n");
@@ -193,6 +195,7 @@ process_connection(int sockfd, void *buf, int n)
     }
     else if (strcmp(cmd->cmd, CMD_DIR) == 0) {
         // create thread to handle dir
+		ret = pthread_create(&tid, &attr, thread_dir, (void *) cmd);
         if (ret < 0) {
             fprintf(stderr, "ERROR: %d\n", __LINE__);
         }
@@ -202,6 +205,7 @@ process_connection(int sockfd, void *buf, int n)
         // the client side.
         fprintf(stderr, "ERROR: unknown command >%s< %d\n", cmd->cmd, __LINE__);
         // close the socket
+		close(sockfd);
     }
 }
 
@@ -354,7 +358,7 @@ thread_dir(void *p)
 
     current_connections_inc();
 
-    // fp = popen()
+    fp = popen(CMD_DIR_POPEN, "r");
     if (fp == NULL) {
         // barf
         // close, free, skedaddle
@@ -363,10 +367,18 @@ thread_dir(void *p)
     }
     memset(buffer, 0, sizeof(buffer));
     // in a while loop, read from fp, write to the socket
-
+	while(fgets(buffer, MAXLINE, fp) != NULL)
+	{
+		write(cmd->sock, buffer, strlen(buffer));
+	}
     // pclose
-    // close the socket
-    // free
+	pclose(fp);
+    
+	// close the socket
+	close(cmd->sock);
+    
+	// free
+	free(cmd);	
 
     current_connections_dec();
 
@@ -379,16 +391,22 @@ void
 current_connections_inc(void)
 {
     // lock
+	pthread_mutex_lock(&connections_mutex);
     // increment
+	++current_connections;
     // unlock
+	pthread_mutex_unlock(&connections_mutex);
 }
 
 void
 current_connections_dec(void)
 {
     // lock
+	pthread_mutex_lock(&connections_mutex);
     // decrement
+	--current_connections;
     // unlock
+	pthread_mutex_unlock(&connections_mutex);
 }
 
 unsigned int

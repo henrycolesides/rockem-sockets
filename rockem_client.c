@@ -118,9 +118,18 @@ get_socket(char * addr, int port)
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     memset(&servaddr, 0, sizeof(servaddr));
-
+	
     // more stuff in here
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(ip_port);
+	inet_pton(AF_INET, ip_addr, &servaddr.sin_addr.s_addr);
 
+	if(connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) != 0)
+	{
+		perror("could not connect");
+		exit(EXIT_FAILURE);
+		// exit here?
+	}	
     return(sockfd);
 }
 
@@ -199,11 +208,21 @@ list_dir(void)
     sockfd = get_socket(ip_addr, ip_port);
 
     strcpy(cmd.cmd, CMD_DIR);
-    // write the command to the socket
 
-    // loop reading from the socket, writing to the file
+    // write the command to the socket 
+	memset(buffer, 0, MAXLINE);
+    memcpy(buffer, &cmd, sizeof(cmd_t));
+	write(sockfd, buffer, strlen(buffer));
+	memset(buffer, 0, MAXLINE);
+    
+	// loop reading from the socket, writing to the file
     //   until the socket read is zero
-
+	while((bytes_read = read(sockfd, buffer, MAXLINE)) != 0)
+	{
+		write(STDOUT_FILENO, buffer, strlen(buffer));
+	}
+	
+	close(sockfd);
     // close the socket
 }
 
