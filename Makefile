@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Werror -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
+CFLAGS = -g -Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Werror -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized 
 
 RS = rockem_server
 RC = rockem_client
@@ -20,7 +20,7 @@ $(RC).o: $(RC).c $(H)
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o $(TC) \#*
+	rm -f *.o $(RS) $(RC) \#*
 
 tar:
 	tar -cvf hsides_rockem_sockets.tar.gz $(RS).c $(RC).c $(H) Makefile

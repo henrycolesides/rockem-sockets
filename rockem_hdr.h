@@ -1,4 +1,5 @@
 // rchaney@pdx.edu
+// Henry Sides, hsides@pdx.edu
 
 #pragma once
 

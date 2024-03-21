@@ -1,4 +1,5 @@
 // rchaney@pdx.edu
+// Henry Sides, hsides@pdx.edu
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -34,7 +35,7 @@ main(int argc, char *argv[])
     cmd_t cmd;
     int opt;
     int i;
-	pthread_t tid;	
+	pthread_t tid;		
 
     memset(&cmd, 0, sizeof(cmd_t));
     while ((opt = getopt(argc, argv, CLIENT_OPTIONS)) != -1) {
@@ -192,7 +193,7 @@ put_file(char *file_name)
     int fd;
     ssize_t bytes_read;
     char buffer[MAXLINE] = {'\0'};
-	
+
 	memset(&cmd, 0, sizeof(cmd_t));
 
     strcpy(cmd.cmd, CMD_PUT);
@@ -238,7 +239,8 @@ list_dir(void)
     int sockfd;
     ssize_t bytes_read;
     char buffer[MAXLINE] = {'\0'};
-
+	
+	memset(&cmd, 0, sizeof(cmd_t));
     printf("dir from server: %s \n", ip_addr);
 
     // get the new socket to the server (get_socket(...)
@@ -271,7 +273,7 @@ thread_get(void *info)
     // process one file
     get_file(file_name);
 
-    pthread_exit(NULL);
+    pthread_exit((void *) EXIT_SUCCESS);
 }
 
 void *
@@ -285,5 +287,5 @@ thread_put(void *info)
     // process one file
     put_file(file_name);
 
-    pthread_exit(NULL);
+    pthread_exit((void *) EXIT_SUCCESS);
 }

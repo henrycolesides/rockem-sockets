@@ -1,4 +1,5 @@
 // rchaney@pdx.edu
+// Henry Sides, hsides@pdx.edu
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,7 +18,7 @@
 
 #define LISTENQ 100
 
-void process_connection(int sockfd, void *buf, int n);
+void process_connection(int sockfd, void *buf);
 void *thread_get(void *p);
 void *thread_put(void *p);
 void *thread_dir(void *p);
@@ -38,7 +39,6 @@ main(int argc, char *argv[])
 {
     int listenfd;
     int sockfd;
-    int n;
     char buf[MAXLINE];
     socklen_t clilen;
     struct sockaddr_in cliaddr;
@@ -136,7 +136,7 @@ main(int argc, char *argv[])
 
         // read a cmd_t structure from the socket.
         // if zro bytes are read, close the scoket
-        if ((n = read(sockfd, buf, MAXLINE)) == 0) {
+        if (read(sockfd, buf, MAXLINE) == 0) {
             fprintf(stdout, "EOF found on client connection socket, "
                     "closing connection.\n");
 			close(sockfd);
@@ -150,30 +150,32 @@ main(int argc, char *argv[])
             // process the command from the client
             // in the process_connection() is where I divy out the put/get/dir
             // threads
-            process_connection(sockfd, buf, n);
+            process_connection(sockfd, buf);
         }
     }
 
     printf("Closing listen socket\n");
     close(listenfd);
+	close(sockfd);
 
     // this could be pthread_exit, I guess...
-    return(EXIT_SUCCESS);
+	pthread_exit(EXIT_SUCCESS);
 }
 
 void
-process_connection(int sockfd, void *buf, int n)
+process_connection(int sockfd, void *buf)
 {
     // I have to allocate one of these for each thread that is created.
     // The thread is responsible for calling free on it.
     cmd_t *cmd = (cmd_t *) malloc(sizeof(cmd_t));
     int ret;
     pthread_t tid;
-    pthread_attr_t attr;
-
+	
+	memset(cmd, 0, sizeof(cmd_t));
     memcpy(cmd, buf, sizeof(cmd_t));
     cmd->sock = sockfd;
-    //cmd->tcount =tcount++;
+    
+	//cmd->tcount =tcount++;
 	tcount++;
     if (is_verbose) {
         fprintf(stderr, "Request from client: <%s> <%s>\n"
@@ -360,6 +362,7 @@ thread_put(void *p)
     }
     // in a while loop, read from the scoket and write to the file
     // within the while loop, if sleep_flap > 0, usleep()
+
 	while((bytes_read = read(cmd->sock, buffer, MAXLINE)) != 0)
 	{
 		if(sleep_flag > 0) usleep(sleep_flag);
