@@ -173,7 +173,8 @@ process_connection(int sockfd, void *buf, int n)
 
     memcpy(cmd, buf, sizeof(cmd_t));
     cmd->sock = sockfd;
-    //cmd->tcount = tcount++;
+    //cmd->tcount =tcount++;
+	tcount++;
     if (is_verbose) {
         fprintf(stderr, "Request from client: <%s> <%s>\n"
                 , cmd->cmd, cmd->name);
@@ -183,19 +184,21 @@ process_connection(int sockfd, void *buf, int n)
     // increment the total conections vrariable
     if (strcmp(cmd->cmd, CMD_GET) == 0) {
         // create thread to handle get file
+		ret = pthread_create(&tid, NULL, thread_get, (void *) cmd);
         if (ret < 0) {
             fprintf(stderr, "ERROR: %d\n", __LINE__);
         }
     }
     else if (strcmp(cmd->cmd, CMD_PUT) == 0) {
         // create thread to handle put file
+		ret = pthread_create(&tid, NULL, thread_put, (void *) cmd);
         if (ret < 0) {
             fprintf(stderr, "ERROR: %d\n", __LINE__);
         }
     }
     else if (strcmp(cmd->cmd, CMD_DIR) == 0) {
         // create thread to handle dir
-		ret = pthread_create(&tid, &attr, thread_dir, (void *) cmd);
+		ret = pthread_create(&tid, NULL, thread_dir, (void *) cmd);
         if (ret < 0) {
             fprintf(stderr, "ERROR: %d\n", __LINE__);
         }
@@ -290,27 +293,41 @@ thread_get(void *p)
     cmd_t *cmd = (cmd_t *) p;
     int fd;
     ssize_t bytes_read;
-    char buffer[MAXLINE];
-
+    char buffer[MAXLINE] = {'\0'};
+	
     current_connections_inc();
+	pthread_detach(pthread_self());
 
     if (is_verbose) {
         fprintf(stderr, "Sending %s to client\n", cmd->name);
     }
     // ope the file in cmd->name, read-only
+	fd = open(cmd->name, O_RDONLY);
     if (fd < 0) {
         // barf
+		perror("failed to open");
         // close things up, free() things up and leave
+		close(cmd->sock);
+		free(cmd);	
         pthread_exit((void *) EXIT_FAILURE);
     }
+
     // in a while loop, read from the file and write to the socket
     // within the while loop, if sleep_flap > 0, usleep()
-
+	while((bytes_read = read(fd, buffer, MAXLINE)) != 0)
+	{
+		if(sleep_flag > 0) usleep(sleep_flag);
+		write(cmd->sock, buffer, bytes_read);
+	}
+	
     // close file descriptor
+	close(fd);
     // close socket
+	close(cmd->sock);
     // free
-
-    current_connections_dec();
+	free(cmd);
+    
+	current_connections_dec();
 
     pthread_exit((void *) EXIT_SUCCESS);
 }
@@ -321,9 +338,10 @@ thread_put(void *p)
     cmd_t *cmd = (cmd_t *) p;
     int fd;
     ssize_t bytes_read;
-    char buffer[MAXLINE];
+    char buffer[MAXLINE] = {'\0'};
 
     current_connections_inc();
+	pthread_detach(pthread_self());
 
     if (is_verbose) {
         fprintf(stderr, "VERBOSE: Receiving %s from client\n"
@@ -331,19 +349,31 @@ thread_put(void *p)
     }
     // open the file in cmd->name as write-only
     // truncate it if it aready exists
+	fd = open(cmd->name, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);	
     if (fd < 0) {
         // barf
-        // close things up, free() things up and leave
+		perror("failed to open"); 
+		// close things up, free() things up and leave
+		close(cmd->sock);
+		free(cmd);
         pthread_exit((void *) EXIT_FAILURE);
     }
     // in a while loop, read from the scoket and write to the file
     // within the while loop, if sleep_flap > 0, usleep()
-
+	while((bytes_read = read(cmd->sock, buffer, MAXLINE)) != 0)
+	{
+		if(sleep_flag > 0) usleep(sleep_flag);
+		write(fd, buffer, bytes_read);
+	}
 
     // close file descriptor
-    // close socket
-    // free
+	close(fd);
 
+    // close socket
+	close(cmd->sock);
+
+    // free
+	free(cmd);
     current_connections_dec();
 
     pthread_exit((void *) EXIT_SUCCESS);
@@ -357,16 +387,21 @@ thread_dir(void *p)
     char buffer[MAXLINE];
 
     current_connections_inc();
+	pthread_detach(pthread_self());
 
     fp = popen(CMD_DIR_POPEN, "r");
     if (fp == NULL) {
         // barf
         // close, free, skedaddle
-
+		perror("popen failed");
+		close(cmd->sock);
+		free(cmd);
         pthread_exit((void *) EXIT_FAILURE);
     }
-    memset(buffer, 0, sizeof(buffer));
-    // in a while loop, read from fp, write to the socket
+
+	memset(buffer, 0, sizeof(buffer));
+   
+	// in a while loop, read from fp, write to the socket
 	while(fgets(buffer, MAXLINE, fp) != NULL)
 	{
 		write(cmd->sock, buffer, strlen(buffer));

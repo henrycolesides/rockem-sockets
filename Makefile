@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g #-Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Werror -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
+CFLAGS = -g -Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -Werror -Wno-return-local-addr -Wunsafe-loop-optimizations -Wuninitialized -Werror
 
 RS = rockem_server
 RC = rockem_client

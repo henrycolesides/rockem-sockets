@@ -34,6 +34,7 @@ main(int argc, char *argv[])
     cmd_t cmd;
     int opt;
     int i;
+	pthread_t tid;	
 
     memset(&cmd, 0, sizeof(cmd_t));
     while ((opt = getopt(argc, argv, CLIENT_OPTIONS)) != -1) {
@@ -88,6 +89,7 @@ main(int argc, char *argv[])
         for (i = optind; i < argc; i++) {
             // create threads
             // pass the file name as the ONE parameter to the thread function
+			pthread_create(&tid, NULL, thread_get, (void *) argv[i]);
         }
     }
     else if (strcmp(cmd.cmd, CMD_PUT) == 0) {
@@ -96,6 +98,7 @@ main(int argc, char *argv[])
         for (i = optind; i < argc; i++) {
             // create threads
             // pass the file name as the ONE parameter to the thread function
+			pthread_create(&tid, NULL, thread_put, (void *) argv[i]);
         }
     }
     else if (strcmp(cmd.cmd, CMD_DIR) == 0) {
@@ -128,7 +131,6 @@ get_socket(char * addr, int port)
 	{
 		perror("could not connect");
 		exit(EXIT_FAILURE);
-		// exit here?
 	}	
     return(sockfd);
 }
@@ -141,9 +143,11 @@ get_file(char *file_name)
     int sockfd;
     int fd;
     ssize_t bytes_read;
-    char buffer[MAXLINE];
+    char buffer[MAXLINE] = {'\0'};
 
-    strcpy(cmd.cmd, CMD_GET);
+	memset(&cmd, 0, sizeof(cmd_t));
+    
+	strcpy(cmd.cmd, CMD_GET);
     if (is_verbose) {
         fprintf(stderr, "next file: <%s> %d\n", file_name, __LINE__);
     }
@@ -153,15 +157,31 @@ get_file(char *file_name)
     }
 
     // get the new socket to the server (get_socket(...)
-    // write the command to the socket
-
+    sockfd = get_socket(ip_addr, ip_port);
+   
+	// write the command to the socket
+	write(sockfd, &cmd, sizeof(cmd));
+    
     // open the file to write
+	fd = open(file_name, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+	if(fd < 0)
+	{
+		perror("open failed");
+		return;
+	}
 
     // loop reading from the socket, writing to the file
     //   until the socket read is zero
+	while((bytes_read = read(sockfd, buffer, MAXLINE)) != 0)
+	{
+		if(sleep_flag > 0) usleep(sleep_flag);
+		write(fd, buffer, bytes_read);
+	}
 
     // close the file
+	close(fd);
     // close the socket
+	close(sockfd);
 }
 
 void
@@ -171,7 +191,9 @@ put_file(char *file_name)
     int sockfd;
     int fd;
     ssize_t bytes_read;
-    char buffer[MAXLINE];
+    char buffer[MAXLINE] = {'\0'};
+	
+	memset(&cmd, 0, sizeof(cmd_t));
 
     strcpy(cmd.cmd, CMD_PUT);
     if (is_verbose) {
@@ -181,17 +203,32 @@ put_file(char *file_name)
     if (is_verbose) {
         fprintf(stderr, "put to server: %s %s %d\n", cmd.cmd, cmd.name, __LINE__);
     }
-
+		
     // get the new socket to the server (get_socket(...)
+	sockfd = get_socket(ip_addr, ip_port);
+
     // write the command to the socket
+	write(sockfd, &cmd, sizeof(cmd_t));
 
     // open the file for read
-
+	fd = open(file_name, O_RDONLY);
+	if(fd < 0)
+	{
+		perror("open failed");
+		return;
+	}
     // loop reading from the file, writing to the socket
     //   until file read is zero
-
-    // close the file
+	while((bytes_read = read(fd, buffer, MAXLINE)) != 0)
+	{
+		if(sleep_flag > 0) usleep(sleep_flag);
+		write(sockfd, buffer, bytes_read);
+	}
+    
+	// close the file
+	close(fd);
     // close the socket
+	close(sockfd);
 }
 
 void
@@ -200,9 +237,9 @@ list_dir(void)
     cmd_t cmd;
     int sockfd;
     ssize_t bytes_read;
-    char buffer[MAXLINE];
+    char buffer[MAXLINE] = {'\0'};
 
-    printf("dir from server: %s \n", cmd.cmd);
+    printf("dir from server: %s \n", ip_addr);
 
     // get the new socket to the server (get_socket(...)
     sockfd = get_socket(ip_addr, ip_port);
@@ -210,16 +247,13 @@ list_dir(void)
     strcpy(cmd.cmd, CMD_DIR);
 
     // write the command to the socket 
-	memset(buffer, 0, MAXLINE);
-    memcpy(buffer, &cmd, sizeof(cmd_t));
-	write(sockfd, buffer, strlen(buffer));
-	memset(buffer, 0, MAXLINE);
+	write(sockfd, &cmd, sizeof(cmd));
     
 	// loop reading from the socket, writing to the file
     //   until the socket read is zero
 	while((bytes_read = read(sockfd, buffer, MAXLINE)) != 0)
 	{
-		write(STDOUT_FILENO, buffer, strlen(buffer));
+		write(STDOUT_FILENO, buffer, bytes_read);
 	}
 	
 	close(sockfd);
@@ -232,6 +266,7 @@ thread_get(void *info)
     char *file_name = (char *) info;
 
     // detach this thread 'man pthread_detach' Look at the EXMAPLES
+	pthread_detach(pthread_self());
 
     // process one file
     get_file(file_name);
@@ -245,6 +280,7 @@ thread_put(void *info)
     char *file_name = (char *) info;
 
     // detach this thread 'man pthread_detach' Look at the EXMAPLES
+	pthread_detach(pthread_self());
 
     // process one file
     put_file(file_name);
